@@ -16,6 +16,7 @@ public partial class SetupPage : Page
     private readonly StringBuilder _logBuffer = new();
     private readonly object _logLock = new();
     private bool _isRunning;
+    private bool _dllNeedsDeploy = true;
 
     // Bumped on every refresh; stale results are discarded.
     private int _refreshGeneration;
@@ -112,7 +113,7 @@ public partial class SetupPage : Page
         Dispatcher.BeginInvoke(() =>
         {
             RunAllButton.IsEnabled = !busy;
-            DeployButton.IsEnabled = !busy;
+            DeployButton.IsEnabled = !busy && _dllNeedsDeploy;
             UninstallDllButton.IsEnabled = !busy;
         });
     }
@@ -287,25 +288,36 @@ public partial class SetupPage : Page
                     System.Windows.Media.Color.FromRgb(0xFF, 0xAA, 0x00));
                 DeployButton.Content = S.Get("Setup_UpdateDll");
                 DeployButton.Visibility = Visibility.Visible;
+                _dllNeedsDeploy = true;
+                DeployButton.IsEnabled = !_isRunning;
             }
             else
             {
                 DeployStatusText.Text = S.Format("Setup_DllInstalled", snap.DllLength.ToString("N0"), snap.DllLastWrite.ToString("g"));
                 DeployButton.Content = S.Get("Setup_Deploy");
-                DeployButton.Visibility = Visibility.Collapsed;
+                DeployButton.Visibility = Visibility.Visible;
+                _dllNeedsDeploy = false;
+                DeployButton.IsEnabled = false; // Grayed out when installed
             }
             UninstallDllButton.Visibility = Visibility.Visible;
+            UninstallDllButton.IsEnabled = !_isRunning;
         }
         else if (snap.EmbeddedAvailable)
         {
             DeployStatusText.Text = S.Get("Setup_DllNotInstalledReady");
             DeployButton.Content = S.Get("Setup_Deploy");
+            DeployButton.Visibility = Visibility.Visible;
+            _dllNeedsDeploy = true;
+            DeployButton.IsEnabled = !_isRunning;
             UninstallDllButton.Visibility = Visibility.Collapsed;
         }
         else
         {
             DeployStatusText.Text = S.Get("Setup_DllNotInstalledNoEmbed");
             DeployButton.Content = S.Get("Setup_Deploy");
+            DeployButton.Visibility = Visibility.Visible;
+            _dllNeedsDeploy = false;
+            DeployButton.IsEnabled = false;
             UninstallDllButton.Visibility = Visibility.Collapsed;
         }
     }
@@ -488,6 +500,7 @@ public partial class SetupPage : Page
         }
 
         SetBusy(false);
+        await RefreshStatuses();
     }
 
     private static bool HasBeenPromptedForAutoUpdate()
@@ -581,6 +594,7 @@ public partial class SetupPage : Page
         finally
         {
             SetBusy(false);
+            await RefreshStatuses();
         }
     }
 
@@ -625,6 +639,7 @@ public partial class SetupPage : Page
         finally
         {
             SetBusy(false);
+            await RefreshStatuses();
         }
     }
 

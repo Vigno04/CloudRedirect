@@ -70,8 +70,10 @@
   <ItemGroup>
     <None Remove="native\cloud760_tool.exe" />
     <None Remove="native\steam_api.dll" />
-    <EmbeddedResource Include="native\cloud760_tool.exe" LogicalName="cloud760_tool.exe" />
-    <EmbeddedResource Include="native\steam_api.dll" LogicalName="steam_api.dll" />
+    <EmbeddedResource Include="native\cloud760_tool.exe" LogicalName="cloud760_tool.exe"
+                      Condition="Exists('native\cloud760_tool.exe')" />
+    <EmbeddedResource Include="native\steam_api.dll" LogicalName="steam_api.dll"
+                      Condition="Exists('native\steam_api.dll')" />
   </ItemGroup>
 
 </Project>

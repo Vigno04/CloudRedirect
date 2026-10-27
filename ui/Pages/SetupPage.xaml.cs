@@ -404,13 +404,13 @@ public partial class SetupPage : Page
 
         Log("");
 
-        // If OpenSteamTool is the detected host, auto-configure its cloud setting.
+        // If OpenSteamTool / BetterSteamTools is the detected host, auto-configure its cloud setting.
         if (succeeded)
         {
             var detection = await Task.Run(() => ThirdPartyDetector.Detect(_steamPath!));
-            if (detection.DetectedTool == "OpenSteamTool")
+            if (detection.DetectedTool is "OpenSteamTool" or "BetterSteamTools" or "LuaTools")
             {
-                Log("═══ Configure OpenSteamTool ═══");
+                Log($"═══ Configure {detection.DetectedTool} ═══");
                 try
                 {
                     var result = await Task.Run(() =>

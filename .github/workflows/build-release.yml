@@ -1,0 +1,85 @@
+name: Build and Release CloudRedirect
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v2.6.8)'
+        required: true
+        default: 'v2.6.8'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Configure CMake
+        run: cmake -S . -B build -G "Ninja Multi-Config"
+
+      - name: Build C++ DLL and CLI
+        run: cmake --build build --config Release --target cloud_redirect cloud_redirect_cli
+
+      - name: Publish WPF GUI (CloudRedirect.exe)
+        run: dotnet publish ui/CloudRedirect.csproj -c Release -r win-x64 --self-contained false -o dist/publish
+
+      - name: Stage Release Assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist/release -Force | Out-Null
+          Copy-Item dist/publish/CloudRedirect.exe dist/release/
+          Copy-Item build/Release/cloud_redirect.dll dist/release/
+          Copy-Item build/Release/cloud_redirect_cli.exe dist/release/
+          Get-ChildItem dist/release/* -Include *.exe,*.dll | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            "$hash  $($_.Name)" | Out-File "$($_.FullName).sha256" -Encoding ascii -NoNewline
+          }
+
+      - name: Determine Tag
+        id: tag_name
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -match '^v[0-9]') {
+            echo "tag=$env:GITHUB_REF_NAME" >> $env:GITHUB_OUTPUT
+          } else {
+            $ver = '${{ github.event.inputs.version }}'
+            if (-not $ver) { $ver = 'v2.6.8' }
+            echo "tag=$ver" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag_name.outputs.tag }}
+          name: CloudRedirect ${{ steps.tag_name.outputs.tag }}
+          body: |
+            ## CloudRedirect (LuaTools / BetterSteamTools / OpenSteamTool Compatible)
+
+            This release is compatible with the latest Steam updates (build 1791+), **LuaTools**, **BetterSteamTools (BST)**, and **OpenSteamTool (OST)**.
+
+            ### Changes:
+            - **Steam 1791+ Compatibility**: Fixed protobuf `CProtoBufMsg` and `AppInfoCache` dynamic offsets.
+            - **BetterSteamTools / LuaTools Detection**: `CloudRedirect.exe` now recognizes `BetterSteamTools` and avoids locking the setup buttons.
+            - **Auto-configuration**: Detects and configures both `bettersteamtools.toml` and `opensteamtool.toml` with `[cloud] enabled = true`.
+            - **WebDAV & System Proxy**: Full WebDAV backend support and automatic system proxy handling.
+
+            ### Included files:
+            - `CloudRedirect.exe`: Standalone GUI companion app (embeds the updated `cloud_redirect.dll`).
+            - `cloud_redirect.dll`: Direct Steam hook DLL (place in Steam root next to `steam.exe`).
+            - `cloud_redirect_cli.exe`: CLI version.
+          files: |
+            dist/release/*

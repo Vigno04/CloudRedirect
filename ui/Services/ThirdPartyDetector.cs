@@ -8,16 +8,21 @@ public static class ThirdPartyDetector
 {
     private static readonly string[] ProxyDllNames =
     {
-        "dwmapi.dll",      // OST + HubcapTools + StealIdra
+        "dwmapi.dll",      // OST + HubcapTools + StealIdra + BST
         "xinput1_4.dll",   // OST alternate
+        "dwrite.dll",      // HubcapTools / BST alternate
     };
 
     // Compatible clients (allow deployment).
     private static readonly string[] CompatibleMarkers =
     {
-        "OpenSteamTool",  // OST
-        "HubcapTools",    // HubcapTools
-        "hubcaptools",    // HubcapTools (lowercase variant)
+        "OpenSteamTool",    // OST
+        "HubcapTools",      // HubcapTools
+        "hubcaptools",      // HubcapTools (lowercase variant)
+        "BetterSteamTools", // BetterSteamTools (BST / LuaTools)
+        "bettersteamtools", // BST (lowercase)
+        "LuaTools",         // LuaTools
+        "luatools",         // LuaTools (lowercase)
     };
 
     // Blacklisted clients
@@ -52,6 +57,29 @@ public static class ThirdPartyDetector
                 DetectedDll: "LumaCore.dll",
                 DetectedPath: lumaDllPath);
         }
+
+        // Fast-path: check if BetterSteamTools / LuaTools or OpenSteamTool files exist in Steam root
+        var bstToml = Path.Combine(steamPath, "bettersteamtools.toml");
+        var bstDll = Path.Combine(steamPath, "BetterSteamTools.dll");
+        if (File.Exists(bstToml) || File.Exists(bstDll))
+        {
+            return new DetectionResult(
+                Status: DetectionStatus.Compatible,
+                DetectedTool: "BetterSteamTools",
+                DetectedDll: File.Exists(bstDll) ? "BetterSteamTools.dll" : "bettersteamtools.toml",
+                DetectedPath: File.Exists(bstToml) ? bstToml : bstDll);
+        }
+
+        var ostToml = Path.Combine(steamPath, "opensteamtool.toml");
+        if (File.Exists(ostToml))
+        {
+            return new DetectionResult(
+                Status: DetectionStatus.Compatible,
+                DetectedTool: "OpenSteamTool",
+                DetectedDll: "opensteamtool.toml",
+                DetectedPath: ostToml);
+        }
+
 
         foreach (var name in ProxyDllNames)
         {

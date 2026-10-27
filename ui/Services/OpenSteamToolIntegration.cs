@@ -40,7 +40,26 @@ public static class OpenSteamToolIntegration
         if (string.IsNullOrWhiteSpace(steamPath))
             throw new ArgumentException("Steam path is required.", nameof(steamPath));
 
-        var configPath = Path.Combine(steamPath, "opensteamtool.toml");
+        var bstPath = Path.Combine(steamPath, "bettersteamtools.toml");
+        var ostPath = Path.Combine(steamPath, "opensteamtool.toml");
+
+        EnableResult? lastResult = null;
+        if (File.Exists(bstPath))
+            lastResult = EnsureCloudEnabledForFile(steamPath, bstPath);
+        if (File.Exists(ostPath))
+        {
+            var ostRes = EnsureCloudEnabledForFile(steamPath, ostPath);
+            lastResult ??= ostRes;
+        }
+
+        if (lastResult != null)
+            return lastResult;
+
+        return EnsureCloudEnabledForFile(steamPath, ostPath);
+    }
+
+    public static EnableResult EnsureCloudEnabledForFile(string steamPath, string configPath)
+    {
         bool existed = File.Exists(configPath);
         string original = existed ? File.ReadAllText(configPath) : string.Empty;
         string newline = original.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";

@@ -118,6 +118,23 @@ if(WIN32)
         src/platform/win/token_store_win.cpp
         src/platform/win/platform_win.cpp
     )
+elseif(ANDROID)
+    set(ANDROID_COMMON_SOURCES ${COMMON_SOURCES})
+    list(REMOVE_ITEM ANDROID_COMMON_SOURCES
+        src/common/rpc_handlers.cpp
+        src/common/stats_handlers.cpp
+        src/common/steam_kv_injector.cpp
+        src/common/parental_bypass.cpp
+    )
+    set(PLATFORM_SOURCES
+        src/platform/android/log_android.cpp
+        src/platform/android/http_transport_android.cpp
+        src/platform/android/token_store_android.cpp
+        src/platform/android/jni_bridge.cpp
+        src/platform/linux/http_util.cpp
+        src/platform/linux/file_util.cpp
+        src/platform/linux/platform_linux.cpp
+    )
 else()
     set(PLATFORM_SOURCES
         src/platform/linux/init.cpp
@@ -139,24 +156,51 @@ endif()
 
 # ── Build target ────────────────────────────────────────────────────────
 
-add_library(cloud_redirect SHARED
-    ${COMMON_SOURCES}
-    ${PLATFORM_SOURCES}
-    ${PROVIDER_SOURCES}
-)
+if(ANDROID)
+    add_library(cloud_redirect_android SHARED
+        ${ANDROID_COMMON_SOURCES}
+        ${PLATFORM_SOURCES}
+        ${PROVIDER_SOURCES}
+    )
 
-set_target_properties(cloud_redirect PROPERTIES PREFIX "")
+    target_include_directories(cloud_redirect_android PRIVATE
+        src/platform/android
+        src/common
+        src/providers
+        src/platform/linux
+    )
 
-target_include_directories(cloud_redirect PRIVATE
-    src/common
-    src/providers
-)
+    target_compile_definitions(cloud_redirect_android PRIVATE
+        MINIZ_NO_STDIO
+        CR_VERSION_STRING="${CR_SO_VERSION}"
+        CR_RELEASE_VERSION="${CR_RELEASE_VERSION}"
+    )
 
-target_compile_definitions(cloud_redirect PRIVATE
-    MINIZ_NO_STDIO
-    CR_VERSION_STRING="${CR_SO_VERSION}"
-    CR_RELEASE_VERSION="${CR_RELEASE_VERSION}"
-)
+    find_library(ANDROID_LOG_LIB log)
+    target_link_libraries(cloud_redirect_android PRIVATE ${ANDROID_LOG_LIB})
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        target_link_options(cloud_redirect_android PRIVATE -s)
+    endif()
+else()
+    add_library(cloud_redirect SHARED
+        ${COMMON_SOURCES}
+        ${PLATFORM_SOURCES}
+        ${PROVIDER_SOURCES}
+    )
+
+    set_target_properties(cloud_redirect PROPERTIES PREFIX "")
+
+    target_include_directories(cloud_redirect PRIVATE
+        src/common
+        src/providers
+    )
+
+    target_compile_definitions(cloud_redirect PRIVATE
+        MINIZ_NO_STDIO
+        CR_VERSION_STRING="${CR_SO_VERSION}"
+        CR_RELEASE_VERSION="${CR_RELEASE_VERSION}"
+    )
+endif()
 
 if(WIN32)
     target_include_directories(cloud_redirect PRIVATE src/platform/win)
@@ -178,7 +222,7 @@ if(WIN32)
     add_executable(cloud760_tool
         src/platform/win/cloud760_tool.cpp
     )
-else()
+elseif(NOT ANDROID)
     target_include_directories(cloud_redirect PRIVATE src/platform/linux)
     target_link_libraries(cloud_redirect PRIVATE dl pthread)
     # Steam on Linux is 32-bit; use LINUX_32BIT=ON when cross-compiling on 64-bit host
@@ -238,6 +282,7 @@ endif()
 
 # ── Tests ───────────────────────────────────────────────────────────────
 
+if(NOT ANDROID)
 enable_testing()
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/tests/autocloud_native_tests.cpp)
@@ -468,3 +513,4 @@ if(WIN32)
         DEPENDS cloud_redirect cloud_redirect_cli
     )
 endif()
+endif() # NOT ANDROID

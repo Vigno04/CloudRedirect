@@ -15,7 +15,44 @@ permissions:
   contents: write
 
 jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure & Build Android (arm64-v8a & armeabi-v7a)
+        run: |
+          NDK_TOOLCHAIN="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake"
+          for ABI in arm64-v8a armeabi-v7a; do
+            cmake -S . -B "build-android-${ABI}" \
+              -DCMAKE_TOOLCHAIN_FILE="${NDK_TOOLCHAIN}" \
+              -DANDROID_ABI="${ABI}" \
+              -DANDROID_PLATFORM=android-24 \
+              -DCMAKE_BUILD_TYPE=Release
+            cmake --build "build-android-${ABI}" --target cloud_redirect_android --parallel
+          done
+
+      - name: Package Android Release Asset
+        run: |
+          mkdir -p dist/android/jniLibs/arm64-v8a dist/android/jniLibs/armeabi-v7a dist/android/kotlin
+          cp build-android-arm64-v8a/libcloud_redirect_android.so dist/android/jniLibs/arm64-v8a/
+          cp build-android-armeabi-v7a/libcloud_redirect_android.so dist/android/jniLibs/armeabi-v7a/
+          cp src/platform/android/kotlin/CloudRedirectNative.kt dist/android/kotlin/
+          cd dist/android
+          zip -r ../cloud_redirect_android.zip jniLibs kotlin
+          cd ..
+          sha256sum cloud_redirect_android.zip > cloud_redirect_android.zip.sha256
+
+      - name: Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: |
+            dist/cloud_redirect_android.zip
+            dist/cloud_redirect_android.zip.sha256
+
   build:
+    needs: [build-android]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +85,12 @@ jobs:
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
             "$hash  $($_.Name)" | Out-File "$($_.FullName).sha256" -Encoding ascii -NoNewline
           }
+
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release
+          path: dist/release
 
       - name: Determine Tag
         id: tag_name

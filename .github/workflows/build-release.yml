@@ -124,5 +124,6 @@ jobs:
             - `CloudRedirect.exe`: Standalone GUI companion app (embeds the updated `cloud_redirect.dll`).
             - `cloud_redirect.dll`: Direct Steam hook DLL (place in Steam root next to `steam.exe`).
             - `cloud_redirect_cli.exe`: CLI version.
+            - `cloud_redirect_android.zip`: Android JNI libraries (`arm64-v8a`, `armeabi-v7a`) and `CloudRedirectNative.kt` binding.
           files: |
             dist/release/*
